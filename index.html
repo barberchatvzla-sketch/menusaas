@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú Digital</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Raleway:wght@300;400&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: #000; font-family: 'Raleway', sans-serif; color: white; overflow: hidden; }
+        #menu-container { height: 100vh; width: 100vw; overflow-y: scroll; scroll-snap-type: y mandatory; scroll-behavior: smooth; scrollbar-width: none; background-color: #000; }
+        #menu-container::-webkit-scrollbar { display: none; }
+        .menu-item { height: 100vh; width: 100vw; scroll-snap-align: start; position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; background-color: #000; }
+        .menu-bg { max-width: 100%; max-height: 100%; object-fit: contain; display: block; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .scroll-hint { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10; animation: bounce 2s infinite; background: rgba(0,0,0,0.3); border-radius: 50%; padding: 5px; }
+        .loader { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #121212; text-align: center; padding: 20px;}
+        @keyframes bounce { 0%, 20%, 50%, 80%, 100% {transform: translateX(-50%) translateY(0);} 40% {transform: translateX(-50%) translateY(-10px);} 60% {transform: translateX(-50%) translateY(-5px);} }
+    </style>
+</head>
+<body>
+
+    <div id="menu-container">
+        <div class="loader" id="loader">
+            <h2 style="font-family: 'Playfair Display'; color: #3ecf8e;">Cargando Menú...</h2>
+        </div>
+    </div>
+
+<script>
+    lucide.createIcons();
+    
+    // CONEXIÓN SUPABASE
+    const SUPABASE_URL = 'https://uqbisplipwdkiyvxvurn.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxYmlzcGxpcHdka2l5dnh2dXJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3MjE1NDYsImV4cCI6MjA4NTI5NzU0Nn0.UZl6unPW3ZWuVe33s5iJyJxrQpyLTp8iQ6k52Ux2_CU'; 
+    const clienteSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const container = document.getElementById('menu-container');
+
+    // OBTENER ID DEL NEGOCIO DESDE LA URL (ej. index.html?id=123-abc)
+    const params = new URLSearchParams(window.location.search);
+    const negocioId = params.get('id');
+
+    async function cargarMenu() {
+        const loader = document.getElementById('loader');
+
+        if (!negocioId) {
+            container.innerHTML = `<div class="menu-item"><h3>⚠️ Error: No se especificó el restaurante.<br>Escanea el QR nuevamente.</h3></div>`;
+            return;
+        }
+
+        // Consultar imágenes SOLO de este negocio_id
+        const { data, error } = await clienteSupabase
+            .from('imagenes_publicas')
+            .select('*')
+            .eq('negocio_id', negocioId) // FILTRO CRUCIAL
+            .order('nombre_archivo', { ascending: true }); 
+
+        if (loader) loader.remove();
+
+        if (error || !data || data.length === 0) {
+            container.innerHTML = `<div class="menu-item"><h3>Este menú aún no tiene imágenes.</h3></div>`;
+            return;
+        }
+
+        data.forEach((img, index) => {
+            const div = document.createElement('div');
+            div.className = 'menu-item';
+            
+            const arrowHtml = index < data.length - 1 
+                ? `<div class="scroll-hint"><i data-lucide="chevron-down" color="white" size="40"></i></div>` 
+                : `<div class="scroll-hint"><span style="font-size:12px; opacity:0.7;">Fin del menú</span></div>`;
+
+            div.innerHTML = `
+                <img src="${img.url_publica}" class="menu-bg" loading="lazy" alt="Plato ${index + 1}">
+                ${arrowHtml}
+            `;
+            container.appendChild(div);
+        });
+        
+        lucide.createIcons();
+    }
+
+    cargarMenu();
+</script>
+</body>
+</html>
