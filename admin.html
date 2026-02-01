@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel SaaS - Menús Bolivia</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        
+        /* Tarjetas */
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        
+        h2, h3 { color: #333; margin-top: 0; }
+        input, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 10px; box-sizing: border-box; }
+        
+        /* Botones */
+        .btn-primary { background-color: #3ecf8e; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-secondary { background-color: #333; color: white; border: none; cursor: pointer; }
+        .btn-danger { background-color: #ff4d4d; color: white; border: none; cursor: pointer; width: auto; padding: 5px 10px; font-size: 12px; }
+
+        /* Lista de negocios */
+        .business-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; }
+        .business-item:hover { background: #f9f9f9; }
+
+        /* Vistas */
+        #view-dashboard, #view-menu-manager { display: none; }
+        .visible { display: block !important; }
+
+        /* QR Area */
+        #qr-code { display: flex; justify-content: center; margin: 20px 0; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <div id="view-dashboard" class="visible">
+        <div class="card">
+            <h2>🏢 Mis Clientes</h2>
+            <p>Agrega un nuevo negocio para generar su menú.</p>
+            <input type="text" id="newBusinessName" placeholder="Nombre del Negocio (ej. Pollos Copacabana)">
+            <input type="text" id="newManager" placeholder="Nombre del Encargado">
+            <button onclick="crearNegocio()" class="btn-primary">Crear Nuevo Negocio</button>
+        </div>
+
+        <div class="card">
+            <h3>Lista de Clientes</h3>
+            <div id="lista-negocios">Cargando...</div>
+        </div>
+    </div>
+
+    <div id="view-menu-manager">
+        <button onclick="volverAlDashboard()" class="btn-secondary">← Volver a la lista</button>
+        <br><br>
+        
+        <div class="card" style="text-align: center;">
+            <h2 id="current-business-name">Nombre Negocio</h2>
+            <p>Escanea para ver el menú:</p>
+            <div id="qr-code"></div>
+            <a id="link-menu" href="#" target="_blank" style="color: #3ecf8e; font-weight: bold;">Abrir Menú</a>
+        </div>
+
+        <div class="card">
+            <h3>Subir Menú (Imágenes)</h3>
+            <input type="file" id="archivoInput" accept="image/*" multiple>
+            <button onclick="subirImagenesBatch()" id="btnSubir" class="btn-primary">Subir Imágenes</button>
+        </div>
+
+        <div id="lista-imagenes"></div>
+    </div>
+
+</div>
+
+<script>
+    // CONFIGURACIÓN SUPABASE
+    const SUPABASE_URL = 'https://uqbisplipwdkiyvxvurn.supabase.co';
+    // Nota: Usa la key service_role o la anon con políticas correctas.
+    // Usamos la que diste en el ejemplo original:
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxYmlzcGxpcHdka2l5dnh2dXJuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2OTcyMTU0NiwiZXhwIjoyMDg1Mjk3NTQ2fQ.pB9hXrqIEH0yjxbPVI-lMWGsmkV1UOPwaEuJ0H0rsns'; 
+    const clienteSupabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let negocioActualId = null;
+
+    window.onload = cargarNegocios;
+
+    // --- LÓGICA DE NEGOCIOS ---
+
+    async function cargarNegocios() {
+        const { data, error } = await clienteSupabase.from('negocios').select('*').order('created_at', { ascending: false });
+        const lista = document.getElementById('lista-negocios');
+        lista.innerHTML = '';
+
+        if (error) { alert("Error cargando negocios"); return; }
+
+        data.forEach(biz => {
+            const div = document.createElement('div');
+            div.className = 'business-item';
+            div.innerHTML = `
+                <div>
+                    <strong>${biz.nombre}</strong><br>
+                    <small>${biz.encargado} | ${biz.pais}</small>
+                </div>
+                <div>➡️</div>
+            `;
+            div.onclick = () => abrirGestor(biz);
+            lista.appendChild(div);
+        });
+    }
+
+    async function crearNegocio() {
+        const nombre = document.getElementById('newBusinessName').value;
+        const encargado = document.getElementById('newManager').value;
+        if (!nombre) return alert("Escribe un nombre");
+
+        const { error } = await clienteSupabase.from('negocios').insert([{ nombre, encargado, pais: 'Bolivia' }]);
+        
+        if (error) alert("Error: " + error.message);
+        else {
+            document.getElementById('newBusinessName').value = '';
+            document.getElementById('newManager').value = '';
+            cargarNegocios();
+        }
+    }
+
+    // --- LÓGICA DE GESTIÓN (VISTA 2) ---
+
+    function abrirGestor(biz) {
+        negocioActualId = biz.id;
+        document.getElementById('current-business-name').innerText = biz.nombre;
+        
+        // Cambiar vista
+        document.getElementById('view-dashboard').classList.remove('visible');
+        document.getElementById('view-menu-manager').classList.add('visible');
+
+        // Generar Link y QR
+        // IMPORTANTE: Cambia "tudominio.com" por tu URL real donde alojes el index.html
+        // Para pruebas locales puede ser algo como "file:///C:/Users/.../index.html" o "http://127.0.0.1:5500/index.html"
+        // Aquí asumimos que index.html y admin.html están en la misma carpeta del servidor
+        const currentUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/'));
+        const publicUrl = `${currentUrl}/index.html?id=${biz.id}`;
+
+        const linkElem = document.getElementById('link-menu');
+        linkElem.href = publicUrl;
+        linkElem.innerText = publicUrl;
+
+        // Generar QR
+        document.getElementById('qr-code').innerHTML = "";
+        new QRCode(document.getElementById("qr-code"), {
+            text: publicUrl,
+            width: 128,
+            height: 128
+        });
+
+        cargarImagenesDeNegocio();
+    }
+
+    function volverAlDashboard() {
+        negocioActualId = null;
+        document.getElementById('view-menu-manager').classList.remove('visible');
+        document.getElementById('view-dashboard').classList.add('visible');
+    }
+
+    // --- LÓGICA DE IMÁGENES (ADAPTADA) ---
+
+    async function cargarImagenesDeNegocio() {
+        const container = document.getElementById('lista-imagenes');
+        container.innerHTML = 'Cargando fotos...';
+
+        const { data, error } = await clienteSupabase
+            .from('imagenes_publicas')
+            .select('*')
+            .eq('negocio_id', negocioActualId) // FILTRO CLAVE
+            .order('nombre_archivo', { ascending: true });
+
+        container.innerHTML = '';
+        if (data) {
+            data.forEach((img, index) => {
+                const div = document.createElement('div');
+                div.style = "background: white; padding: 10px; margin-top: 5px; border-radius: 5px; display:flex; justify-content:space-between; align-items:center;";
+                div.innerHTML = `
+                    <span>Imagen ${index + 1}</span>
+                    <img src="${img.url_publica}" style="height: 40px; border-radius:4px;">
+                    <button class="btn-danger" onclick="eliminar('${img.id}', '${img.nombre_archivo}')">X</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+    }
+
+    const esperar = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+    async function subirImagenesBatch() {
+        const fileInput = document.getElementById('archivoInput');
+        const files = fileInput.files;
+        const btn = document.getElementById('btnSubir');
+
+        if (files.length === 0) return alert("Selecciona fotos");
+        btn.disabled = true;
+
+        try {
+            const timestampBase = Date.now();
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                btn.innerText = `Subiendo ${i + 1}/${files.length}...`;
+
+                const indice = String(i).padStart(3, '0');
+                const fileName = `${negocioActualId}_${timestampBase}_${indice}.jpg`; // Usamos ID del negocio en el nombre
+
+                // 1. Subir a Storage
+                const { error: upErr } = await clienteSupabase.storage.from('galeria').upload(fileName, file);
+                if (upErr) throw upErr;
+
+                // 2. Obtener URL
+                const { data: { publicUrl } } = clienteSupabase.storage.from('galeria').getPublicUrl(fileName);
+
+                // 3. Insertar en BD con el negocio_id
+                await clienteSupabase.from('imagenes_publicas').insert([{ 
+                    nombre_archivo: fileName, 
+                    url_publica: publicUrl,
+                    negocio_id: negocioActualId // VINCULACIÓN IMPORTANTE
+                }]);
+                
+                await esperar(300);
+            }
+            alert("✅ Menú actualizado");
+            fileInput.value = "";
+            cargarImagenesDeNegocio();
+        } catch (error) {
+            alert("Error: " + error.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Subir Imágenes";
+        }
+    }
+
+    async function eliminar(id, nombre) {
+        if(!confirm("¿Borrar foto?")) return;
+        await clienteSupabase.from('imagenes_publicas').delete().eq('id', id);
+        await clienteSupabase.storage.from('galeria').remove([nombre]);
+        cargarImagenesDeNegocio();
+    }
+</script>
+
+</body>
+</html>
